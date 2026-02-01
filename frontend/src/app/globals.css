@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  /* Cream/Off-white background */
+  --background: hsl(40 20% 98%);
+  /* Dull black text */
+  --foreground: hsl(0 0% 10%);
+
+  /* White cards for contrast against cream background */
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(0 0% 10%);
+
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(0 0% 10%);
+
+  /* Charcoal Black for Primary actions */
+  --primary: hsl(0 0% 15%);
+  --primary-foreground: hsl(0 0% 98%);
+
+  /* Subtle Gray for Secondary actions */
+  --secondary: hsl(0 0% 96%);
+  --secondary-foreground: hsl(0 0% 15%);
+
+  /* Muted backgrounds */
+  --muted: hsl(0 0% 96%);
+  --muted-foreground: hsl(0 0% 45%);
+
+  /* Accent (hover states, etc) - slightly darker than background */
+  --accent: hsl(0 0% 94%);
+  --accent-foreground: hsl(0 0% 15%);
+
+  /* Error states */
+  --destructive: hsl(0 60% 50%);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  /* Subtle borders */
+  --border: hsl(0 0% 90%);
+  --input: hsl(0 0% 90%);
+  
+  /* Focus rings - matched to primary or subtle */
+  --ring: hsl(0 0% 15%);
+
+  /* Sharp but friendly radius */
+  --radius: 0.25rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-inter);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius));
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Professional Dark Mode - Neutral Slate/Gray */
+    --background: hsl(0 0% 5%);
+    --foreground: hsl(0 0% 98%);
+
+    --card: hsl(0 0% 8%);
+    --card-foreground: hsl(0 0% 98%);
+
+    --popover: hsl(0 0% 8%);
+    --popover-foreground: hsl(0 0% 98%);
+
+    --primary: hsl(0 0% 98%);
+    --primary-foreground: hsl(0 0% 9%);
+
+    --secondary: hsl(0 0% 12%);
+    --secondary-foreground: hsl(0 0% 98%);
+
+    --muted: hsl(0 0% 12%);
+    --muted-foreground: hsl(0 0% 60%);
+
+    --accent: hsl(0 0% 12%);
+    --accent-foreground: hsl(0 0% 98%);
+
+    --destructive: hsl(0 60% 50%);
+    --destructive-foreground: hsl(0 0% 98%);
+
+    --border: hsl(0 0% 18%);
+    --input: hsl(0 0% 18%);
+    --ring: hsl(0 0% 80%);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  letter-spacing: -0.01em; /* Tighten up Inter slightly for a professional look */
+}
+
+/* Base style overrides for a cleaner look */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500; /* Medium weight max as requested */
+  letter-spacing: -0.02em;
+}
