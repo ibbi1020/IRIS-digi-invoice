@@ -106,3 +106,16 @@ async def get_current_user(
 # Type alias for dependency injection
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+
+
+# FBR Service dependency
+from app.services.fbr_service import FBRService
+
+
+def get_fbr_service() -> FBRService:
+    """Provide FBR service instance for dependency injection."""
+    return FBRService()
+
+
+FBRServiceDep = Annotated[FBRService, Depends(get_fbr_service)]
+

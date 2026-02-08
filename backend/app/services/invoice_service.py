@@ -20,7 +20,7 @@ from app.models import InvoiceItem, Tenant
 from app.models.invoice import Invoice, InvoiceStatus, InvoiceType
 from app.schemas.common import PaginationParams
 from app.schemas.invoice import InvoiceCreate, InvoiceItemCreate, InvoiceUpdate
-from app.services.fbr_service import get_fbr_service
+from app.services.fbr_service import FBRService
 from app.utils.invoice_ref import (
     suggest_next_ref_no,
     validate_ref_no_format,
@@ -440,6 +440,7 @@ async def submit_invoice(
     db: AsyncSession,
     tenant_id: UUID,
     invoice_id: UUID,
+    fbr_service: FBRService,
 ) -> Invoice:
     """
     Submit an invoice to FBR.
@@ -468,8 +469,6 @@ async def submit_invoice(
     if invoice.status != InvoiceStatus.DRAFT:
         raise InvoiceNotDraftError(invoice_id, invoice.status)
         
-    fbr_service = get_fbr_service()
-    
     # Submit to FBR
     response = await fbr_service.submit_invoice(invoice, db)
     
