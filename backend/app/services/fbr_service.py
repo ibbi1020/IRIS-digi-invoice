@@ -215,11 +215,35 @@ class FBRService:
         except Exception as e:
             return {"error": str(e)}
 
-# Global instance
+# Service factory
 _fbr_service = None
+_mock_fbr_service = None
 
 def get_fbr_service() -> FBRService:
-    global _fbr_service
-    if _fbr_service is None:
-        _fbr_service = FBRService()
-    return _fbr_service
+    """
+    Get FBR service instance (real or mock based on configuration).
+    
+    Industry Best Practice:
+    - Automatically switches between real and mock based on USE_MOCK_FBR flag
+    - Allows seamless development without external dependencies
+    - Same interface for both implementations
+    """
+    from app.config import get_settings
+    settings = get_settings()
+    
+    if settings.use_mock_fbr:
+        # Use mock service for development
+        global _mock_fbr_service
+        if _mock_fbr_service is None:
+            from app.services.mock_fbr_service import get_mock_fbr_service
+            _mock_fbr_service = get_mock_fbr_service()
+            logger.info("fbr_service_mode", mode="MOCK", reason="USE_MOCK_FBR=true")
+        return _mock_fbr_service
+    else:
+        # Use real FBR service
+        global _fbr_service
+        if _fbr_service is None:
+            _fbr_service = FBRService()
+            logger.info("fbr_service_mode", mode="REAL", url=settings.fbr_url)
+        return _fbr_service
+

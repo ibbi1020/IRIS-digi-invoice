@@ -63,3 +63,5 @@ logs/
 
 # Alembic
 alembic/versions/__pycache__/
+
+.env

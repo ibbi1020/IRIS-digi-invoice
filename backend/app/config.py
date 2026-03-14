@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     fbr_auth_token: str = Field(default="", alias="FBR_SANDBOX_TOKEN", description="FBR Bearer Token")
     fbr_sandbox_invoice_detail_url: str = Field(default="", description="Validation Endpoint")
     fbr_sandbox_invoice_detail_token: str = Field(default="", description="Validation Token")
+    
+    # Mock Mode (for development without IP whitelisting)
+    use_mock_fbr: bool = Field(default=False, description="Use mock FBR service instead of real API")
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
