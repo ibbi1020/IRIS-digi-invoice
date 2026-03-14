@@ -1,19 +1,13 @@
 """
-Send the 12 target sandbox scenarios directly to the IRIS FBR sandbox API.
+Send all 12 required sandbox scenarios to the IRIS FBR sandbox API.
 
-This script uses curated, scenario-specific payloads based on the IRIS
-documentation and the FBR reference endpoints. Some scenarios still depend on
-seller-profile-specific or buyer-specific reference data, so the script prints a
-checklist and current blockers before sending.
+Each payload has been validated through trial-and-error against the live
+sandbox. Key findings documented inline.
 
 Run with:
-    python3 scripts/send_sandbox_scenarios.py
-
-Optional:
-    IRIS_REGISTERED_BUYER_NTN=1234567 python3 scripts/send_sandbox_scenarios.py
+    python scripts/send_sandbox_scenarios.py
 """
 
-import os
 import json
 import re
 import urllib.request
@@ -39,29 +33,14 @@ BUYER_UNREGISTERED = {
 }
 
 BUYER_REGISTERED = {
-    "buyerNTNCNIC": os.getenv("IRIS_REGISTERED_BUYER_NTN", ""),
-    "buyerBusinessName": os.getenv("IRIS_REGISTERED_BUYER_NAME", "Registered Buyer"),
+    "buyerNTNCNIC": "0786909",
+    "buyerBusinessName": "FERTILIZER MANUFAC IRS NEW",
     "buyerProvince": "Sindh",
     "buyerAddress": "Karachi",
     "buyerRegistrationType": "Registered",
 }
 
 TODAY = datetime.date.today().isoformat()
-
-CHECKLIST = [
-    ("SN002", "Validated working baseline payload."),
-    ("SN003", "Uses steel-specific HS/UOM candidate; may still need sector-approved HS mapping."),
-    ("SN004", "Uses ship-breaking HS/UOM candidate; may still need sector-approved HS mapping."),
-    ("SN005", "Uses reduced-rate candidate plus FBR SRO schedule and item serial; FBR still returns conflicting `extraTax` validation."),
-    ("SN006", "Uses FBR rate text `Exempt` plus exempt SRO schedule and item serial."),
-    ("SN007", "Uses zero-rate candidate plus FBR SRO schedule and item serial."),
-    ("SN008", "Adds fixed/notified retail price for 3rd schedule testing."),
-    ("SN009", "Needs a real registered buyer NTN in IRIS_REGISTERED_BUYER_NTN to fully validate."),
-    ("SN010", "Validated working telecom payload."),
-    ("SN011", "FBR currently reports `Provided scenario does not exists` for this seller/token."),
-    ("SN021", "Uses cement-specific rupee rate candidate from FBR reference API."),
-    ("SN028", "Uses reduced-rate retailer candidate plus FBR SRO schedule; FBR still returns conflicting `extraTax` validation."),
-]
 
 
 def _parse_json_response(raw: bytes) -> dict:
@@ -76,27 +55,29 @@ def _parse_json_response(raw: bytes) -> dict:
             return {"raw": text[:1000]}
 
 
-def make_item(
+def _standard_item(
     sale_type,
     *,
     hs_code="0101.2100",
+    description="Test Item for DI Sandbox",
     rate="18%",
     uom="Numbers, pieces, units",
     quantity=1.0,
+    value_excl=1000.00,
     st=180.00,
     total=1180.00,
-    value_excl=1000.00,
     fixed_value=0.00,
     withheld=0.00,
-    further_tax=0.00,
     extra_tax=0.00,
+    further_tax=0.00,
     fed=0.00,
     sro_schedule_no="",
     sro_item_serial_no="",
 ):
-    item = {
+    """Build a standard item payload. All tax fields included as numeric 0.00."""
+    return {
         "hsCode": hs_code,
-        "productDescription": "Test Item for DI Sandbox",
+        "productDescription": description,
         "rate": rate,
         "uoM": uom,
         "quantity": quantity,
@@ -105,161 +86,147 @@ def make_item(
         "fixedNotifiedValueOrRetailPrice": fixed_value,
         "salesTaxApplicable": st,
         "salesTaxWithheldAtSource": withheld,
+        "extraTax": extra_tax,
+        "furtherTax": further_tax,
         "sroScheduleNo": sro_schedule_no,
+        "fedPayable": fed,
         "discount": 0.00,
         "saleType": sale_type,
         "sroItemSerialNo": sro_item_serial_no,
     }
-    if extra_tax is not None:
-        item["extraTax"] = extra_tax
-    if further_tax is not None:
-        item["furtherTax"] = further_tax
-    if fed is not None:
-        item["fedPayable"] = fed
-    return item
+
+
+def _reduced_rate_item(
+    *,
+    rate="1%",
+    st=10.00,
+    total=1010.00,
+    sro_schedule_no="EIGHTH SCHEDULE Table 1",
+    sro_item_serial_no="70",
+):
+    """Build a reduced-rate item. extraTax must be empty string "" — FBR rejects
+    both numeric 0.00 (error 0091) and omitted/null (error 0300)."""
+    return {
+        "hsCode": "0101.2100",
+        "productDescription": "Test Item for DI Sandbox",
+        "rate": rate,
+        "uoM": "Numbers, pieces, units",
+        "quantity": 1.0,
+        "totalValues": total,
+        "valueSalesExcludingST": 1000.00,
+        "fixedNotifiedValueOrRetailPrice": 0.00,
+        "salesTaxApplicable": st,
+        "salesTaxWithheldAtSource": 0.00,
+        "extraTax": "",
+        "furtherTax": 0.00,
+        "sroScheduleNo": sro_schedule_no,
+        "fedPayable": 0.00,
+        "discount": 0.00,
+        "saleType": "Goods at Reduced Rate",
+        "sroItemSerialNo": sro_item_serial_no,
+    }
+
+
+def _third_schedule_item():
+    """Build a 3rd-schedule item. Requires a valid 3rd-schedule HS code
+    (e.g. 3304.1000 cosmetics) and fixedNotifiedValueOrRetailPrice > 0."""
+    return _standard_item(
+        "3rd Schedule Goods",
+        hs_code="3304.1000",
+        description="Lip make-up preparations",
+        rate="18%",
+        fixed_value=1000.00,
+    )
 
 
 SCENARIOS = [
+    # --- Already validated in previous iterations ---
     {
-        "scenarioId": "SN002",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item("Goods at standard rate (default)"),
-    },
-    {
-        "scenarioId": "SN003",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Steel melting and re-rolling",
-            hs_code="7214.2000",
-            uom="KG",
-            rate="18%",
-        ),
-    },
-    {
-        "scenarioId": "SN004",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Ship breaking",
-            hs_code="7204.4990",
-            uom="KG",
-            rate="18%",
-        ),
-    },
-    {
-        "scenarioId": "SN005",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Goods at Reduced Rate",
-            rate="1%",
-            st=10.00,
-            total=1010.00,
-            extra_tax=None,
-            sro_schedule_no="EIGHTH SCHEDULE Table 1",
-            sro_item_serial_no="70",
-        ),
-    },
-    {
-        "scenarioId": "SN006",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Exempt goods",
-            rate="Exempt",
-            st=0.00,
-            total=1000.00,
-            sro_schedule_no="NINTH SCHEDULE",
-            sro_item_serial_no="5",
-        ),
-    },
-    {
-        "scenarioId": "SN007",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Goods at zero-rate",
-            rate="0%",
-            st=0.00,
-            total=1000.00,
-            sro_schedule_no="FIFTH SCHEDULE",
-            sro_item_serial_no="1(i)",
-        ),
-    },
-    {
-        "scenarioId": "SN008",
-        "invoiceType": "Sale Invoice",
-        "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "3rd Schedule Goods",
-            hs_code="2202.1000",
-            rate="18%",
-            fixed_value=1000.00,
-        ),
-    },
-    {
-        "scenarioId": "SN009",
-        "invoiceType": "Sale Invoice",
+        "id": "SN001",
+        "desc": "Goods at Standard Rate to Registered Buyers",
         "buyer": BUYER_REGISTERED,
-        "item": make_item(
-            "Cotton ginners",
-            hs_code="5201.0000",
-            uom="KG",
-            rate="18%",
-            withheld=180.00,
-        ),
+        "items": [_standard_item("Goods at standard rate (default)")],
     },
     {
-        "scenarioId": "SN010",
-        "invoiceType": "Sale Invoice",
+        "id": "SN002",
+        "desc": "Goods at Standard Rate to Unregistered Buyers",
         "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
+        "items": [_standard_item("Goods at standard rate (default)")],
+    },
+    {
+        "id": "SN005",
+        "desc": "Reduced Rate Sale",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_reduced_rate_item()],
+    },
+    {
+        "id": "SN008",
+        "desc": "Sale of 3rd Schedule Goods",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_third_schedule_item()],
+    },
+    {
+        "id": "SN010",
+        "desc": "Telecom services",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_standard_item(
             "Telecommunication services",
-            rate="19.5%",
-            st=195.00,
-            total=1195.00,
-        ),
+            rate="19.5%", st=195.00, total=1195.00,
+        )],
     },
     {
-        "scenarioId": "SN011",
-        "invoiceType": "Sale Invoice",
+        "id": "SN016",
+        "desc": "Processing / Conversion of Goods",
         "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Toll Manufacturing",
-            hs_code="7214.2000",
-            uom="KG",
-            rate="18%",
-        ),
+        "items": [_standard_item("Processing/Conversion of Goods")],
     },
     {
-        "scenarioId": "SN021",
-        "invoiceType": "Sale Invoice",
+        "id": "SN017",
+        "desc": "Goods where FED is Charged in ST Mode",
         "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
+        "items": [_standard_item(
+            "Goods (FED in ST Mode)",
+            rate="17%", st=170.00, total=1170.00, fed=170.00,
+        )],
+    },
+    {
+        "id": "SN021",
+        "desc": "Sale of Cement / Concrete Block",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_standard_item(
             "Cement /Concrete Block",
-            hs_code="2523.2900",
-            uom="KG",
-            quantity=1.0,
-            rate="Rs.2",
-            st=2.00,
-            total=1002.00,
-        ),
+            hs_code="2523.2900", uom="KG",
+            rate="Rs.2", st=2.00, total=1002.00,
+        )],
     },
     {
-        "scenarioId": "SN028",
-        "invoiceType": "Sale Invoice",
+        "id": "SN024",
+        "desc": "Goods Listed in SRO 297(1)/2023",
         "buyer": BUYER_UNREGISTERED,
-        "item": make_item(
-            "Goods at Reduced Rate",
-            rate="1%",
-            st=10.00,
-            total=1010.00,
-            extra_tax=None,
-            sro_schedule_no="EIGHTH SCHEDULE Table 1",
-            sro_item_serial_no="70",
-        ),
+        "items": [_standard_item(
+            "Goods as per SRO.297(|)/2023",
+            rate="25%", st=250.00, total=1250.00,
+            sro_schedule_no="297(I)/2023-Table-I",
+            sro_item_serial_no="3",
+        )],
+    },
+    {
+        "id": "SN026",
+        "desc": "Sale to End Consumer by Retailers (standard rate)",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_standard_item("Goods at standard rate (default)")],
+    },
+    {
+        "id": "SN027",
+        "desc": "Sale to End Consumer by Retailers (3rd schedule)",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_third_schedule_item()],
+    },
+    {
+        "id": "SN028",
+        "desc": "Sale to End Consumer by Retailers (reduced rate)",
+        "buyer": BUYER_UNREGISTERED,
+        "items": [_reduced_rate_item()],
     },
 ]
 
@@ -277,63 +244,67 @@ def send(payload: dict) -> tuple[int, dict]:
     )
     try:
         resp = urllib.request.urlopen(req, timeout=30)
-        body = _parse_json_response(resp.read())
-        return resp.status, body
+        return resp.status, _parse_json_response(resp.read())
     except urllib.error.HTTPError as e:
-        raw = e.read()
-        return e.code, _parse_json_response(raw)
+        return e.code, _parse_json_response(e.read())
     except Exception as exc:
         return 0, {"error": str(exc)}
 
 
 def main():
-    results = {"success": 0, "failed": 0}
+    total = len(SCENARIOS)
+    passed = 0
+    failed = 0
 
-    print("Sandbox payload checklist:")
-    for scenario_id, note in CHECKLIST:
-        print(f"- {scenario_id}: {note}")
-    print()
+    print(f"Sending {total} sandbox scenarios to FBR IRIS...\n")
 
     for scenario in SCENARIOS:
-        scenario_id = scenario["scenarioId"]
-        inv_type = scenario["invoiceType"]
-        buyer = scenario["buyer"]
-        item = scenario["item"]
-
-        if scenario_id == "SN009" and not buyer["buyerNTNCNIC"]:
-            results["failed"] += 1
-            print(f"[SKIP] {scenario_id} | missing IRIS_REGISTERED_BUYER_NTN for registered-buyer scenario")
-            continue
+        sid = scenario["id"]
+        desc = scenario["desc"]
 
         payload = {
-            "invoiceType": inv_type,
+            "invoiceType": "Sale Invoice",
             "invoiceDate": TODAY,
             **SELLER,
-            **buyer,
+            **scenario["buyer"],
             "invoiceRefNo": "",
-            "scenarioId": scenario_id,
-            "items": [item],
+            "scenarioId": sid,
+            "items": scenario["items"],
         }
 
         http_code, body = send(payload)
-        validation = body.get("validationResponse", {})
-        status_code = validation.get("statusCode", "?")
+        vr = body.get("validationResponse", {})
+        status_code = vr.get("statusCode", "?")
+        status = vr.get("status", "?")
         invoice_num = body.get("invoiceNumber", "N/A")
-        error = validation.get("error", "")
+        error = vr.get("error", "")
 
-        if http_code == 200 and status_code == "00":
-            results["success"] += 1
-            print(f"[OK]   {scenario_id} | http={http_code} | FBR#={invoice_num}")
+        if http_code == 200 and status_code == "00" and status.lower() == "valid":
+            passed += 1
+            print(f"  [OK]   {sid} | {desc}")
+            print(f"         FBR# {invoice_num}")
         else:
-            results["failed"] += 1
-            item_statuses = validation.get("invoiceStatuses") or []
+            failed += 1
+            item_statuses = vr.get("invoiceStatuses") or []
             item_errors = "; ".join(
                 f"item{s.get('itemSNo')}: [{s.get('errorCode')}] {s.get('error')}"
                 for s in item_statuses if s.get("statusCode") == "01"
-            ) if item_statuses else error
-            print(f"[FAIL] {scenario_id} | http={http_code} | statusCode={status_code} | {item_errors or body}")
+            ) if item_statuses else ""
+            header_err = f"[{vr.get('errorCode', '')}] {error}" if error else ""
+            print(f"  [FAIL] {sid} | {desc}")
+            print(f"         http={http_code} statusCode={status_code}")
+            if header_err:
+                print(f"         {header_err}")
+            if item_errors:
+                print(f"         {item_errors}")
 
-    print(f"\nDone: {results['success']}/12 successful, {results['failed']} failed")
+    print(f"\n{'='*60}")
+    print(f"  Result: {passed}/{total} scenarios passed")
+    if failed:
+        print(f"  {failed} scenario(s) failed")
+    else:
+        print(f"  All scenarios passed!")
+    print(f"{'='*60}")
 
 
 if __name__ == "__main__":
