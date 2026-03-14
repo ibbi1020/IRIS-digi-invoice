@@ -75,3 +75,13 @@ We are now ready to implement the connector to the FBR API.
 *   FBR API Latency handling.
 *   Mapping our `Invoice` model to the exact FBR JSON/XML payload structure.
 *   Handling Sandbox vs Production credentials.
+
+### Sandbox Payload Checklist
+- [x] Bearer token is valid for seller NTN `3804564` and seller name `PAPEREXCHANGE`.
+- [x] Direct sandbox posting works end-to-end for `SN002`, `SN010`, and `SN021` with HTTP `200` and valid FBR invoice numbers.
+- [ ] `SN003` and `SN004` need commodity-appropriate HS codes and UOM values for steel and ship-breaking sale types.
+- [ ] `SN005`, `SN006`, `SN007`, and `SN028` need both a valid `sroScheduleNo` and a matching `sroItemSerialNo` from the reference APIs.
+- [ ] `SN008` must include `fixedNotifiedValueOrRetailPrice` and a 3rd-schedule-compatible commodity payload.
+- [ ] `SN009` needs a real registered buyer NTN/CNIC plus cotton-ginner-specific tax treatment.
+- [ ] `SN011` is currently rejected by FBR as `Provided scenario does not exists` for this token/account profile.
+- [x] `SN021` succeeds when using the cement-specific rate format (`Rs.2`, `Rs.3`, `Rs.5`, or `Rs.10`) instead of a percentage rate.

@@ -51,7 +51,7 @@ class InvoiceItem(Base):
         comment="Tax rate (e.g., '0%', '17%')",
     )
     uom: Mapped[str] = mapped_column(
-        String(20),
+        String(100),
         nullable=False,
         comment="Unit of Measure",
     )

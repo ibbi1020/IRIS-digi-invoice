@@ -81,9 +81,9 @@ class InvoiceItemBase(BaseModel):
     uom: str = Field(
         ...,
         min_length=1,
-        max_length=20,
+        max_length=100,
         description="Unit of Measure",
-        examples=["KG", "PCS", "LTR"],
+        examples=["KG", "PCS", "LTR", "Numbers, pieces, units"],
     )
     quantity: DecimalField = Field(
         ...,
@@ -163,7 +163,7 @@ class InvoiceItemUpdate(BaseModel):
     hs_code: str | None = Field(default=None, min_length=1, max_length=20)
     product_description: str | None = Field(default=None, min_length=1, max_length=500)
     rate: str | None = Field(default=None, min_length=1, max_length=10)
-    uom: str | None = Field(default=None, min_length=1, max_length=20)
+    uom: str | None = Field(default=None, min_length=1, max_length=100)
     quantity: DecimalField | None = Field(default=None, ge=0)
     total_values: DecimalField | None = Field(default=None, ge=0)
     value_sales_excluding_st: DecimalField | None = Field(default=None, ge=0)
@@ -213,10 +213,10 @@ class InvoiceBase(BaseModel):
 
     # Buyer information
     buyer_ntn_cnic: str = Field(
-        ...,
-        min_length=1,
+        default="",
+        min_length=0,
         max_length=13,
-        description="Buyer NTN (13 digits) or CNIC",
+        description="Buyer NTN (13 digits) or CNIC; empty for unregistered buyers",
     )
     buyer_business_name: str = Field(
         ...,
@@ -258,15 +258,14 @@ class InvoiceBase(BaseModel):
     @field_validator("buyer_ntn_cnic")
     @classmethod
     def validate_buyer_ntn_cnic(cls, v: str) -> str:
-        """Validate NTN/CNIC format: 13 digits or valid CNIC format."""
+        """Validate NTN/CNIC format: 13 digits or valid CNIC format; empty allowed for unregistered."""
         v = v.strip()
+        if not v:
+            return v  # Empty is valid for unregistered buyers
         # Remove any hyphens for CNIC
         cleaned = v.replace("-", "")
         if not cleaned.isdigit():
             raise ValueError("NTN/CNIC must contain only digits (hyphens allowed for CNIC)")
-        if len(cleaned) not in (13, 15):  # NTN is 13, CNIC is 13 or 15 with separators
-            # Allow flexibility for now, FBR will validate
-            pass
         return v
 
 
@@ -296,7 +295,7 @@ class InvoiceUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     invoice_date: date | None = None
-    buyer_ntn_cnic: str | None = Field(default=None, min_length=1, max_length=13)
+    buyer_ntn_cnic: str | None = Field(default=None, min_length=0, max_length=13)
     buyer_business_name: str | None = Field(default=None, min_length=1, max_length=255)
     buyer_province: str | None = Field(default=None, min_length=1, max_length=100)
     buyer_address: str | None = Field(default=None, min_length=1, max_length=500)

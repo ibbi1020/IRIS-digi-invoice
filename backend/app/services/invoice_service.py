@@ -345,7 +345,7 @@ async def create_invoice(
         db.add(item)
 
     await db.flush()
-    await db.refresh(invoice, ["items"])
+    await db.refresh(invoice, ["items", "referenced_invoice"])
 
     return invoice
 
