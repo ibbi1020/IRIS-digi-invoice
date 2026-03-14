@@ -42,55 +42,49 @@ class FBRService:
         """
         Construct FBR JSON payload from Invoice model.
         
-        Maps internal model fields to FBR API expected keys.
+        Maps internal model fields to official IRIS API expected keys.
+        Reference: IRIS Documentation.md Section 4.1
         """
-        # Determine transaction type based on InvoiceType enum in model
-        # Sale Invoice -> "Sale" (Assumed, need validation against doc if available, 
-        # but using standard English based on Scenario descriptions)
-        doc_type_map = {
-            "Sale Invoice": "Sale",
-            "Debit Note": "Debit",
-            "Credit Note": "Credit"
-        }
-        
+        # Build items array per IRIS spec
         items = []
         for item in invoice.items:
-            items.append({
-                "ItemCode": item.hs_code, # Assuming HS Code is used as Item Code
-                "ItemName": item.product_description,
-                "PCTCode": item.hs_code.replace(".", "") if item.hs_code else "", # FBR often wants raw digits
-                "Quantity": float(item.quantity),
-                "TaxRate": float(item.rate.replace("%", "").strip()) if item.rate else 0.0,
-                "SaleValue": float(item.value_sales_excluding_st),
-                "TotalAmount": float(item.total_values),
-                "TaxCharged": float(item.sales_tax_applicable),
-                "FurtherTax": float(item.further_tax),
-                "ExtraTax": float(item.extra_tax) if item.extra_tax else 0.0, # extra_tax is str in model? Check field.
-                "InvoiceType": "1", # Goods? 
-                "UOM": item.uom,
-                # Add other specific fields if populated
-                "Discount": float(item.discount),
-                "FinanceAct": item.sro_schedule_no or "",
-            })
+            item_payload = {
+                "hsCode": item.hs_code,
+                "productDescription": item.product_description,
+                "rate": item.rate,  # e.g., "18%"
+                "uoM": item.uom,
+                "quantity": float(item.quantity),
+                "totalValues": float(item.total_values),
+                "valueSalesExcludingST": float(item.value_sales_excluding_st),
+                "fixedNotifiedValueOrRetailPrice": float(item.fixed_notified_value),
+                "salesTaxApplicable": float(item.sales_tax_applicable),
+                "salesTaxWithheldAtSource": float(item.sales_tax_withheld),
+                "extraTax": float(item.extra_tax) if item.extra_tax and item.extra_tax.strip() else 0.0,
+                "furtherTax": float(item.further_tax),
+                "sroScheduleNo": item.sro_schedule_no or "",
+                "fedPayable": float(item.fed_payable),
+                "discount": float(item.discount),
+                "saleType": item.sale_type or "Goods at standard rate (default)",
+                "sroItemSerialNo": item.sro_item_serial_no or "",
+            }
+            items.append(item_payload)
 
+        # Build main payload per IRIS spec
         payload = {
-            "InvoiceNumber": invoice.invoice_ref_no,
-            "POSID": 123456, # Sandbox/Test POSID? Or should this be configured per Tenant? 
-                             # For MVP Sandbox, we might need a static mapping or env var. 
-                             # I'll use a placeholder or Tenant field if available.
-                             # Tenant has `seller_ntn`.
-            "USIN": invoice.invoice_ref_no, # USIN is often same as Inv No in simple integration?
-            "DateTime": invoice.invoice_date.strftime("%Y-%m-%d") + " 00:00:00", # Date + Time
-            "BuyerName": invoice.buyer_business_name,
-            "BuyerNTN": invoice.buyer_ntn_cnic.replace("-", ""),
-            "BuyerCNIC": invoice.buyer_ntn_cnic.replace("-", "") if len(invoice.buyer_ntn_cnic) > 9 else "",
-            "BuyerType": "1" if invoice.buyer_registration_type.value == "Registered" else "2", # 1=Reg, 2=Unreg
-            "TotalSaleValue": sum(i["SaleValue"] for i in items),
-            "TotalTaxCharged": sum(i["TaxCharged"] for i in items),
-            "TotalBillAmount": sum(i["TotalAmount"] for i in items),
-            "TotalQuantity": sum(i["Quantity"] for i in items),
-            "Items": items,
-            "SellerNTN": invoice.tenant.seller_ntn.replace("-", "") if invoice.tenant and invoice.tenant.seller_ntn else "",
+            "invoiceType": invoice.invoice_type.value,  # "Sale Invoice" or "Debit Note"
+            "invoiceDate": invoice.invoice_date.strftime("%Y-%m-%d"),
+            "sellerNTNCNIC": invoice.tenant.seller_ntn.replace("-", "") if invoice.tenant and invoice.tenant.seller_ntn else "",
+            "sellerBusinessName": invoice.tenant.business_name if invoice.tenant else "",
+            "sellerProvince": invoice.tenant.province if invoice.tenant else "",
+            "sellerAddress": invoice.tenant.address if invoice.tenant else "",
+            "buyerNTNCNIC": invoice.buyer_ntn_cnic.replace("-", ""),
+            "buyerBusinessName": invoice.buyer_business_name,
+            "buyerProvince": invoice.buyer_province,
+            "buyerAddress": invoice.buyer_address,
+            "buyerRegistrationType": invoice.buyer_registration_type.value,  # "Registered" or "Unregistered"
+            "invoiceRefNo": invoice.invoice_ref_no if invoice.invoice_type.value == "Debit Note" else "",
+            "scenarioId": invoice.scenario_id,  # Required for sandbox
+            "items": items,
         }
         
         return payload

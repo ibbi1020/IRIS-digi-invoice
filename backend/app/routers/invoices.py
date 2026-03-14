@@ -8,7 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.dependencies import CurrentUserDep, DbSession
+from app.dependencies import CurrentUserDep, DbSession, FBRServiceDep
 from app.models import InvoiceStatus, InvoiceType
 from app.schemas.common import PaginationParams
 from app.schemas.invoice import (
@@ -336,6 +336,7 @@ async def delete_invoice(
 async def submit_invoice(
     current_user: CurrentUserDep,
     db: DbSession,
+    fbr_service: FBRServiceDep,
     invoice_id: UUID,
 ) -> InvoiceResponse:
     """
@@ -349,6 +350,7 @@ async def submit_invoice(
             db,
             current_user.tenant.id,
             invoice_id,
+            fbr_service,
         )
         return _invoice_to_response(invoice)
     except InvoiceNotFoundError:
